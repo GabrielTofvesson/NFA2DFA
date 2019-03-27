@@ -44,6 +44,10 @@ class State<T>(
     override fun hashCode(): Int {
         return name.hashCode()
     }
+
+    override fun toString(): String {
+        return name
+    }
 }
 
 class StateFactory<T>(val language: Language<T>, val deterministic: Boolean){

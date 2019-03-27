@@ -97,7 +97,7 @@ class Automaton<T>(val language: Language<T>, val deterministic: Boolean){
         }
 
         if(printTable)
-            for(key in tableEntries.keys){
+            for(key in tableEntries.keys.sortedBy { if(it.contentsEquals(startingState)) 0 else if (it.isAcceptState()) 2 else 1  }){
                 print(
                         (if(key.contentsEquals(startingState)) "→  " else "   ") +
                                 (if(key.isAcceptState()) "F" else " ") +
@@ -131,7 +131,13 @@ class Automaton<T>(val language: Language<T>, val deterministic: Boolean){
 
     private fun MutableList<State<T>>.isAcceptState() = firstOrNull { it.acceptState } != null
 
-    private inner class StateTraverser(entryPoint: State<T>) {
+    fun makeTraverser(): StateTraverser{
+        if(entryPoint == null)
+            throw IllegalStateException("Entry point state must be defined!")
+        return StateTraverser(entryPoint!!)
+    }
+
+    inner class StateTraverser(entryPoint: State<T>) {
         var currentState: MutableList<State<T>> = ArrayList()
 
         val accepted: Boolean
@@ -150,8 +156,9 @@ class Automaton<T>(val language: Language<T>, val deterministic: Boolean){
             val nextState = ArrayList<State<T>>()
 
             for(state in currentState)
-                for(traverseState in state.getConnective(verb))
+                for(traverseState in state.getConnective(verb)) {
                     nextState.traverseEpsilon(traverseState)
+                }
 
             currentState = nextState
         }
@@ -161,6 +168,7 @@ class Automaton<T>(val language: Language<T>, val deterministic: Boolean){
             for(epsilonState in state.getEpsilon())
                 if(!contains(epsilonState))
                     traverseEpsilon(epsilonState)
+
         }
     }
 }

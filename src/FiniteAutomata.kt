@@ -1,24 +1,37 @@
 import dev.w1zzrd.automata.*
 
 fun main(args: Array<String>){
-    val language = Language.makeLanguage(0, 1, 2)
-    val automaton = Automaton(language, false)
+    val language = Language.makeLanguage(0, 1)
+    val nfa = Automaton(language, false)
 
-    val stateA = automaton.makeState("a")
-    val stateB = automaton.makeState("b")
-    val stateC = automaton.makeState("c")
-    val stateD = automaton.makeState("d", true)
+    val stateS = nfa.makeState("s")
+    val stateQ1 = nfa.makeState("q1")
+    val stateQ2 = nfa.makeState("q2", true)
+    val stateP = nfa.makeState("p")
+    val stateQ = nfa.makeState("q")
+    val stateR = nfa.makeState("r", true)
 
-    stateA.addConnective(arrayOf(0, 1), stateB)
-    stateA.addConnective(arrayOf(1, 2), stateC)
+    stateS.addEpsilon(stateQ1, stateP)
 
-    stateB.addConnective(arrayOf(0, 2), stateD)
+    stateQ1.addConnective(0, stateQ1)
+    stateQ1.addConnective(1, stateQ2)
 
-    stateC.addConnective(arrayOf(0, 1), stateD)
+    stateQ2.addConnective(0, stateQ1)
 
-    stateD.addConnective(0, stateA)
+    stateP.addConnective(arrayOf(0, 1), stateP)
+    stateP.addConnective(1, stateQ)
 
-    automaton.entryPoint = stateA
+    stateQ.addConnective(arrayOf(0, 1), stateR)
 
-    val dfa = automaton.toDeterministicAutomaton(true)
+    nfa.entryPoint = stateS
+
+    val dfa = nfa.toDeterministicAutomaton(true)
+
+    val dtraverser = dfa.makeTraverser()
+    dtraverser.traverse(1, 1, 0, 0)
+    println(dtraverser.currentState.toString())
+
+    val ntraverser = nfa.makeTraverser()
+    ntraverser.traverse(1, 1, 0, 0)
+    println(ntraverser.currentState.toString())
 }
