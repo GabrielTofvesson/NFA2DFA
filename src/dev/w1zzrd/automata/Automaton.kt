@@ -1,5 +1,48 @@
 package dev.w1zzrd.automata
 
+
+/**
+ * check if the contents of two collections is equal.
+ *
+ * @param other The other collection to compare against
+ *
+ * @return True if the length of the two collections is equal, and each element in one collection has an equivalent
+ * element in the other
+ */
+internal infix fun <V> Collection<V>.contentsEquals(other: Collection<V>) =
+        size == other.size &&
+        firstOrNull { other.firstOrNull { check -> check == it } == null } == null
+
+/**
+ * Whether or not the given set of states is an accept-state-set.
+ *
+ * @return True if one or more of the states in the list is an accept state, otherwise false.
+ */
+internal fun <T> MutableList<State<T>>.isAcceptState() = firstOrNull { it.acceptState } != null
+
+
+/**
+ * Create a [String] representation of the set of states.
+ */
+private fun Iterable<State<*>>.toReadableString(): String {
+    val stringComparator = Comparator.naturalOrder<String>()
+    val sorted = sortedWith(Comparator{ state1, state2 -> stringComparator.compare(state1.name, state2.name) })
+
+    // If the set is empty, return the empty set ;)
+    if(sorted.isEmpty()) return "∅"
+
+    // A non-empty set starts with a '{'
+    val builder = StringBuilder("{")
+
+    // Append the name of each state, followed by a comma
+    for(state in sorted) builder.append(state.name).append(',')
+
+    // The last character should be a '}', not a comma, so replace the above appended comma accordingly
+    builder.setCharAt(builder.length - 1, '}')
+
+    return builder.toString()
+}
+
 /**
  * A finite automaton that accepts elements from the given language and
  * which is either deterministic or nondeterministic
@@ -172,27 +215,6 @@ class Automaton<T>(val language: Language<T>, val deterministic: Boolean){
             return if(result == null) null else result to find!!
         }
 
-        // Simple function for converting states to a corresponding string
-        // The corresponding string will describe a set of the included states
-        fun Iterable<State<T>>.toReadableString(): String {
-            val stringComparator = Comparator.naturalOrder<String>()
-            val sorted = sortedWith(Comparator{ state1, state2 -> stringComparator.compare(state1.name, state2.name) })
-
-            // If the set is empty, return the empty set ;)
-            if(sorted.isEmpty()) return "∅"
-
-            // A non-empty set starts with a '{'
-            val builder = StringBuilder("{")
-
-            // Append the name of each state, followed by a comma
-            for(state in sorted) builder.append(state.name).append(',')
-
-            // The last character should be a '}', not a comma, so replace the above appended comma accordingly
-            builder.setCharAt(builder.length - 1, '}')
-
-            return builder.toString()
-        }
-
         // Create a traverser object for this automaton and get the initial state of it
         val traverser = StateTraverser(entryPoint!!)
         val startingState = traverser.currentState
@@ -256,24 +278,77 @@ class Automaton<T>(val language: Language<T>, val deterministic: Boolean){
         return dfa
     }
 
-    /**
-     * check if the contents of two collections is equal.
-     *
-     * @param other The other collection to compare against
-     *
-     * @return True if the length of the two collections is equal, and each element in one collection has an equivalent
-     * element in the other
-     */
-    private infix fun <V> Collection<V>.contentsEquals(other: Collection<V>) =
-            size == other.size &&
-            firstOrNull { other.firstOrNull { check -> check == it } == null } == null
 
     /**
-     * Whether or not the given set of states is an accept-state-set.
+     * Create a fresh (partially unsorted) partition set from this automaton
      *
-     * @return True if one or more of the states in the list is an accept state, otherwise false.
+     * @return A [PartitionSet] containing two [Partition]s: one containing accept-states and one containing reject-states.
      */
-    private fun MutableList<State<T>>.isAcceptState() = firstOrNull { it.acceptState } != null
+    private fun makePartitionSet(): PartitionSet<T> =
+            mutableListOf(states.filter { it.acceptState }.toMutableList(), states.filter { !it.acceptState }.toMutableList())
+
+    /**
+     * Converts this automaton into its minimal form using partitioning.
+     *
+     * @return The minimal DFA
+     *
+     * @exception IllegalStateException If the [entryPoint] is null.
+     */
+    fun toMinimalDFA(): Automaton<T> {
+        // The DFA to minimize
+        val toMinimize = if(deterministic) this else toDeterministicAutomaton()
+
+        // Ensure a proper entry point
+        if(toMinimize.entryPoint == null)
+            throw IllegalStateException("Entry point must be defined in order to minimize DFA!")
+
+        // The current partition set
+        var partitionSet = toMinimize.makePartitionSet()
+
+        // Loop until there is no change
+        while(true){
+            val newPartitionSet = makeBlankPartitionSet<T>()
+
+            // Re-partition all current partitions in case two states in a partition are distinguishable
+            for(partition in partitionSet) {
+                for (state in partition) {
+                    // Create a new partition if it doesn't already exist
+                    val addTo = newPartitionSet.getAssociatedPartition(state) ?: ArrayList()
+                    if(!newPartitionSet.contains(addTo)) newPartitionSet.add(addTo)
+
+                    // Add all indistinguishable states (from the currently analysed state) to the partition being created
+                    partition.filterNotTo(addTo) { addTo.contains(it) || state.isDistinguishableFrom(it, partitionSet) }
+                }
+            }
+
+            // If there was no change to the set of partitions or their contents, we are done
+            if(partitionSet.isEquivalentTo(newPartitionSet)) break
+            else partitionSet = newPartitionSet
+        }
+
+        // Now to actually create the new automaton
+        val minimalAutomaton = Automaton(language, true)
+
+        // Map generated partitions to new DFA states
+        val newOldStateMap = HashMap<Partition<T>, State<T>>()
+
+        var startState: State<T>? = null
+        for(partition in partitionSet){
+            // Create a state from a partition
+            val state = minimalAutomaton.makeState(partition.toReadableString(), partition[0].acceptState)
+            if(partition.firstOrNull { it == toMinimize.entryPoint } != null) startState = state
+            newOldStateMap[partition] = state
+        }
+
+        // Apply proper connectives to the DFA according to the connectives in the states in each of the partitions
+        for(partition in partitionSet)
+            for(verb in language.elements)
+                newOldStateMap[partition]!!.addConnective(verb, newOldStateMap[partitionSet.getAssociatedPartition(partition[0].getConnective(verb)[0])]!!)
+
+        minimalAutomaton.entryPoint = startState!!
+
+        return minimalAutomaton
+    }
 
     /**
      * Create a [StateTraverser] for this automaton.
@@ -333,11 +408,13 @@ class Automaton<T>(val language: Language<T>, val deterministic: Boolean){
             val nextState = ArrayList<State<T>>()
 
             // Loop through all active states
-            for(state in currentState)
-                // Get all states that each state transitions to for the given element
-                for(traverseState in state.getConnective(verb))
-                    // Perform epsilon transitions for each newly discovered state
-                    nextState.traverseEpsilon(traverseState)
+            currentState
+                    // Get all states that each state transitions to for the given element
+                    .flatMap {
+                        it.getConnective(verb)
+                        // Perform epsilon transitions for each newly discovered state
+                    }
+                    .forEach { nextState.traverseEpsilon(it) }
 
             // Update the state of the traverser
             currentState = nextState

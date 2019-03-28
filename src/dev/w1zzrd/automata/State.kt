@@ -87,6 +87,28 @@ class State<T>(
      */
     fun getEpsilon() = ArrayList(epsilon)
 
+    /**
+     * Determines whether or not this state is functionally distinguishable from another state.
+     *
+     * @param state The state to compare with
+     *
+     * @return True if there is no input that results in a distinguishable change in state of an automaton, else false.
+     *
+     * @see PartitionSet
+     */
+    fun isDistinguishableFrom(state: State<T>, partitions: PartitionSet<T>): Boolean {
+        partitions.ensureCorrectness()
+        return !isDeterministic ||
+                language.elements.firstOrNull{
+                    val myConnective = getConnective(it)
+                    val otherConnective = state.getConnective(it)
+                    if(myConnective.size != 1 || otherConnective.size != 1)
+                        throw IllegalStateException("Incomplete connective for state!")
+
+                    !partitions.sharePartition(myConnective[0], otherConnective[0])
+                } != null
+    }
+
     override fun equals(other: Any?) = other is State<*> && other.name == name
     override fun hashCode(): Int {
         return name.hashCode()
