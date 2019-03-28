@@ -9,25 +9,26 @@ fun main(args: Array<String>){
 
     // Declare states of the NFA
     val stateS = nfa.makeState("s")
-    val stateQ1 = nfa.makeState("q1")
-    val stateQ2 = nfa.makeState("q2", true)
-    val stateP = nfa.makeState("p")
-    val stateQ = nfa.makeState("q")
-    val stateR = nfa.makeState("r", true)
+    val stateA = nfa.makeState("a")
+    val stateB = nfa.makeState("b", true)
+    val stateC = nfa.makeState("c")
+    val stateD = nfa.makeState("d")
+    val stateE = nfa.makeState("e", true)
 
-    // Add epsilon transition from S to Q1 and P
-    stateS.addEpsilon(stateQ1, stateP)
 
-    // Add regular state-transition connectives
-    stateQ1.addConnective(0, stateQ1)
-    stateQ1.addConnective(1, stateQ2)
+    stateS.addEpsilon(stateA, stateC)
 
-    stateQ2.addConnective(0, stateQ1)
+    stateA.addConnective(1, stateB)
 
-    stateP.addConnective(arrayOf(0, 1), stateP)
-    stateP.addConnective(1, stateQ)
+    stateB.addConnective(0, stateB)
 
-    stateQ.addConnective(arrayOf(0, 1), stateR)
+    stateC.addConnective(1, stateB, stateD)
+    stateC.addConnective(0, stateB)
+
+    stateD.addConnective(0, stateE)
+
+    stateE.addConnective(arrayOf(0, 1), stateC)
+
 
     // Declare S as the initial state
     nfa.entryPoint = stateS
@@ -37,11 +38,15 @@ fun main(args: Array<String>){
 
     // Get a traverser for the DFA and manually traverse the string "1100", then print the resulting state
     val dtraverser = dfa.makeTraverser()
-    dtraverser.traverse(1, 1, 0, 0)
+    dtraverser.traverse(1, 0, 0, 1, 0)
+    println("DFA simulation:")
     println(dtraverser.currentState.toString())
+    println("Accepts: ${dfa.accepts(1, 0, 0, 1, 0)}\n")
 
     // Do the same as above but for the NFA
     val ntraverser = nfa.makeTraverser()
-    ntraverser.traverse(1, 1, 0, 0)
+    ntraverser.traverse(1, 0, 0, 1, 0)
+    println("NFA simulation:")
     println(ntraverser.currentState.toString())
+    println("Accepts: ${nfa.accepts(1, 0, 0, 1, 0)}")
 }

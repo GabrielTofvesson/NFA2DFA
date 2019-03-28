@@ -243,7 +243,7 @@ class Automaton<T>(val language: Language<T>, val deterministic: Boolean){
 
         // Generate the NFA-DFA state-set-to-state mappings, as well as populating the DFA with the necessary states
         for(tableState in tableEntries.keys)
-            oldToNew[tableState] = dfa.makeState(tableState.toReadableString(), tableState.contentsEquals(startingState))
+            oldToNew[tableState] = dfa.makeState(tableState.toReadableString(), tableState.isAcceptState())
 
         // Apply the mapping schema determined by the generated state-table to the DFA
         for(oldState in oldToNew.keys)
@@ -351,9 +351,9 @@ class Automaton<T>(val language: Language<T>, val deterministic: Boolean){
             if(!contains(state)) add(state)
 
             // Recursively traverse epsilon connectives for new connectives (i.e. for states not already traversed)
-            for(epsilonState in state.getEpsilon())
-                if(!contains(epsilonState))
-                    traverseEpsilon(epsilonState)
+            state.getEpsilon()
+                    .filterNot { contains(it) }
+                    .forEach { traverseEpsilon(it) }
 
         }
     }
